@@ -11,51 +11,57 @@ fn main() {
     let num_cpus = thread::available_parallelism().unwrap().get();
     println!("{}", num_cpus);
 
-
-
     //let mut reader = BufReader::with_capacity(num_cpus*(21*1024),file);
     let mut easy = Easy::new();
-    let mut buf = [0; 21];
+    let mut buf: [u8; 21] = [0; 21];
     let mut i: u64 = 0;
+    let mut url = format!("https://api.pi.delivery/v1/pi?start={i}&numberOfDigits=1000&radix=10");
+    let mut certo = false;
 
     loop {
+        if certo == false {
+            println!("url: {}", url);
+            // Write the contents of rust-lang.org to stdout
+            url = format!("https://api.pi.delivery/v1/pi?start={i}&numberOfDigits=1000&radix=10");
+            easy.url(url.as_str()).unwrap();
+            easy.write_function(move |data| {
+                for cem in 0..978 {
+                    for index in 0..21 {
+                        buf[index] = data[index+cem];
+                        //println!("n{:?}", std::str::from_utf8(&buf));
+                    }
 
-        // Write the contents of rust-lang.org to stdout
-        
-        easy.url(format!("https://api.pi.delivery/v1/pi?start={i}&numberOfDigits=1000&radix=10").as_str()).unwrap();
-        easy.write_function(|data| {
-            println!("data: {:?}",data);
-            Ok(data.len())
-        }).unwrap();
+                    if check_palindrome(&buf) {
+                        let palavra = std::str::from_utf8(&buf).unwrap();
 
-        /* 
-        if check_palindrome(&buf) {
-            let palavra = std::str::from_utf8(&buf).unwrap();
+                        println!(
+                            "palindrome: ${} #{:?} {:?}",
+                            i,
+                            thread::current().id(),
+                            &palavra
+                        );
+                        let num = u128::from_str_radix(palavra, 10).unwrap();
+                        if prime(&num) {
+                            println!(
+                                "palindrome primo: ${} #{:?} {:?}",
+                                i,
+                                thread::current().id(),
+                                &palavra
+                            );
+                            certo = true;
+                        }
+                    }
 
-            println!(
-                "palindrome: ${} #{:?} {:?}",
-                i,
-                thread::current().id(),
-                &palavra
-            );
-            let num = u128::from_str_radix(palavra, 10).unwrap();
-            if prime(&num) {
-                println!(
-                    "palindrome primo: ${} #{:?} {:?}",
-                    i,
-                    thread::current().id(),
-                    &palavra
-                );
-                break;
-            }
+                  
+                }
+                i = i + 1000;
+
+                println!("${} {:?}", i, std::str::from_utf8(&buf));
+                Ok(data.len())
+            })
+            .unwrap();
+            easy.perform().unwrap();
         }
-
-        i = i + 1000;
-
-        if i % 100000 == 0 {
-            println!("${} {:?}", i, std::str::from_utf8(&buf));
-        }
-        */
     }
 }
 
@@ -102,7 +108,7 @@ fn check_palindrome(palavra: &[u8; 21]) -> bool {
                 }
             }
         }
-    } 
+    }
 
     false
 }
