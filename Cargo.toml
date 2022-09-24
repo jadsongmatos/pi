@@ -13,3 +13,4 @@ opt-level = 3
 
 [dependencies]
 curl = "0.4.44"
+tinyjson = "2.5.0"

@@ -7,6 +7,8 @@ use std::io::{stdout, BufRead, BufReader, Read, Seek, Write};
 
 use curl::easy::Easy;
 
+use tinyjson::JsonValue;
+
 fn main() {
     let num_cpus = thread::available_parallelism().unwrap().get();
     println!("{}", num_cpus);
@@ -26,9 +28,13 @@ fn main() {
             i = i + 1000;
             easy.url(url.as_str()).unwrap();
             easy.write_function(move |data| {
+
+                let parsed: JsonValue = std::str::from_utf8(data).unwrap().parse().unwrap();
+                let cont = parsed["content"].stringify().unwrap();
+
                 for cem in 0..978 {
                     for index in 0..21 {
-                        buf[index] = data[index+cem];
+                        buf[index] = cont.as_bytes()[index+cem];
                         //println!("n{:?}", std::str::from_utf8(&buf));
                     }
 
