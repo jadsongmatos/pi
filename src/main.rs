@@ -20,9 +20,10 @@ fn main() {
 
     loop {
         if certo == false {
-            println!("url: {}", url);
+            println!("url: {}", &url);
             // Write the contents of rust-lang.org to stdout
             url = format!("https://api.pi.delivery/v1/pi?start={i}&numberOfDigits=1000&radix=10");
+            i = i + 1000;
             easy.url(url.as_str()).unwrap();
             easy.write_function(move |data| {
                 for cem in 0..978 {
@@ -54,7 +55,6 @@ fn main() {
 
                   
                 }
-                i = i + 1000;
 
                 println!("${} {:?}", i, std::str::from_utf8(&buf));
                 Ok(data.len())
