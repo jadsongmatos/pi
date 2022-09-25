@@ -1,96 +1,114 @@
+use crossbeam_channel::unbounded;
+//use crossbeam_utils::thread;
+
 use std::thread;
+use std::thread::available_parallelism;
 
 use std::env;
 use std::fs::File;
 use std::io::SeekFrom;
-use std::io::{stdout, BufRead, BufReader, Read, Seek, Write};
+use std::io::{BufRead, BufReader, Read, Seek};
 
-use curl::easy::Easy;
+use num::integer::Roots;
 
-use tinyjson::JsonValue;
+use std::process;
 
+struct Mensagem {
+    tipo: String,
+    dado: [u8; 21],
+}
 fn main() {
-    let num_cpus = thread::available_parallelism().unwrap().get();
-    println!("{}", num_cpus);
+    let num_cpus = available_parallelism().unwrap().get();
+    let (s1, r1) = unbounded();
+    //let (s2, r2) = (s1.clone(), r1.clone());
+
+    let args: Vec<String> = env::args().collect();
+    println!("num_cpus: {} {:?}", num_cpus, args);
+
+    for i in 0..num_cpus {
+        let (s2, r2) = (s1.clone(), r1.clone());
+        thread::spawn(move || loop {
+            let mensagem: Mensagem = r2.recv().unwrap();
+
+            if mensagem.tipo == "c" {
+                if check_palindrome(&mensagem.dado) {
+                    s2.send(Mensagem {
+                        tipo: String::from("o"),
+                        dado: mensagem.dado,
+                    })
+                    .unwrap();
+                }
+            }
+        });
+    }
+
+    let mut file;
+    match File::open(&args[1]) {
+        Ok(s) => {
+            file = s;
+        }
+        Err(e) => {
+            println!("File open {}", e);
+            return;
+        }
+    }
 
     //let mut reader = BufReader::with_capacity(num_cpus*(21*1024),file);
-    let mut easy = Easy::new();
-    let mut buf: [u8; 21] = [0; 21];
-    let mut i: u64 = 0;
-    let mut url = format!("https://api.pi.delivery/v1/pi?start={i}&numberOfDigits=1000&radix=10");
-    let mut certo = false;
 
+    thread::spawn(move || loop {
+        let res: Mensagem = r1.recv().unwrap();
+
+        if res.tipo == "o" {
+            println!("{:?}", std::str::from_utf8(&res.dado));
+            process::exit(0x0000);
+        }
+    });
+
+    let mut buf = [0; 21];
+    let mut i: u64 = 2;
+    let mut s_buf = std::str::from_utf8(&buf);
     loop {
-        if certo == false {
-            println!("url: {}", &url);
-            // Write the contents of rust-lang.org to stdout
-            url = format!("https://api.pi.delivery/v1/pi?start={i}&numberOfDigits=1000&radix=10");
-            i = i + 1000;
-            easy.url(url.as_str()).unwrap();
-            easy.write_function(move |data| {
+        file.seek(SeekFrom::Start(i)).expect("seek failed");
 
-                let parsed: JsonValue = std::str::from_utf8(data).unwrap().parse().unwrap();
-                let cont = parsed["content"].stringify().unwrap();
+        match file.read_exact(&mut buf) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("File read {}", e);
+                break;
+            }
+        }
 
-                for cem in 0..978 {
-                    for index in 0..21 {
-                        buf[index] = cont.as_bytes()[index+cem];
-                        //println!("n{:?}", std::str::from_utf8(&buf));
-                    }
+        // Send a message and then receive one.
+        s1.send(Mensagem {
+            tipo: String::from("c"),
+            dado: buf,
+        })
+        .unwrap();
 
-                    if check_palindrome(&buf) {
-                        let palavra = std::str::from_utf8(&buf).unwrap();
+        i = i + 1;
 
-                        println!(
-                            "palindrome: ${} #{:?} {:?}",
-                            i,
-                            thread::current().id(),
-                            &palavra
-                        );
-                        let num = u128::from_str_radix(palavra, 10).unwrap();
-                        if prime(&num) {
-                            println!(
-                                "palindrome primo: ${} #{:?} {:?}",
-                                i,
-                                thread::current().id(),
-                                &palavra
-                            );
-                            certo = true;
-                        }
-                    }
-
-                  
-                }
-
-                println!("${} {:?}", i, std::str::from_utf8(&buf));
-                Ok(data.len())
-            })
-            .unwrap();
-            easy.perform().unwrap();
+        if i % 100000 == 0 {
+            s_buf = std::str::from_utf8(&buf);
+            println!("${} {:?}", i, s_buf);
         }
     }
 }
 
-fn prime(y: &u128) -> bool {
-    let mut aux = 2;
-    let mut div = 0;
-
-    loop {
-        if aux <= y / 2 {
-            if y % aux == 0 {
-                div = div + 1;
-            }
-        } else {
-            break;
-        };
-        aux = aux + 1;
+fn is_prime(value: &u128) -> bool {
+    if value % 2 == 0 || value % 3 == 0 {
+        return false;
     }
 
-    if div == 0 {
-        return true;
+    let max_fac = (value).sqrt() + 1;
+    let mut test_fac = 5;
+    while test_fac <= max_fac {
+        if value % test_fac == 0 || value % (test_fac + 2) == 0 {
+            return false;
+        }
+        test_fac += 6;
     }
 
-    false
+    true
 }
 
 fn check_palindrome(palavra: &[u8; 21]) -> bool {
@@ -104,7 +122,23 @@ fn check_palindrome(palavra: &[u8; 21]) -> bool {
                                 if palavra[7] == palavra[13] {
                                     if palavra[8] == palavra[12] {
                                         if palavra[9] == palavra[11] {
-                                            return true;
+                                            let n_str = std::str::from_utf8(palavra).unwrap();
+                                            println!("palindrome: {:?}", &palavra);
+
+                                            match u128::from_str_radix(n_str, 10) {
+                                                Ok(n) => {
+                                                    if is_prime(&n) {
+                                                        println!(
+                                                            "palindrome primo: {:?}",
+                                                            &palavra
+                                                        );
+                                                        return true;
+                                                    }
+                                                }
+                                                Err(_) => {
+                                                    println!("error from_str_radix")
+                                                }
+                                            }
                                         }
                                     }
                                 }

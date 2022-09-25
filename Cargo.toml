@@ -12,5 +12,6 @@ opt-level = 0
 opt-level = 3
 
 [dependencies]
-curl = "0.4.44"
-tinyjson = "2.5.0"
+crossbeam-channel = "0.5.6"
+crossbeam-utils = "0.8.11"
+num = "0.4.0"
