@@ -1,39 +1,64 @@
+use std::thread;
+use std::thread::available_parallelism;
+
 use std::env;
 use std::fs::File;
 use std::io::SeekFrom;
-use std::io::{Read, Seek};
+use std::io::{BufReader, Read, Seek};
+use std::io::prelude::*;
+
 
 use num::integer::Roots;
 
 fn main() {
+    let num_cpus = available_parallelism().unwrap().get();
+
     let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
+    println!("num_cpus: {} {:?}", num_cpus, args);
 
-    let mut file = File::open(&args[2]).expect("File open");
+    let file = File::open(&args[1]).expect("File open error");
+    let mut reader = BufReader::new(file);
 
-    let mut buf = [0; 21];
-    let index = u64::from_str_radix(&args[1], 10).unwrap();
-    let mut i = index;
-    let mut s_buf = std::str::from_utf8(&buf);
-    loop {
-        if (i / 8) % 8 == index {
-            file.seek(SeekFrom::Start(i)).expect("seek failed");
+    for i in 0..num_cpus {
+        thread::spawn(move || {
+            let mut buf = [0; 21];
+            let mut index = i as u64;
+            let mut cont: usize = 0;
+            let mut s_buf = std::str::from_utf8(&buf);
+            loop {
+                reader.seek(SeekFrom::Start(index)).expect("seek failed");
 
-            file.read_exact(&mut buf).expect("File read");
+                match reader.read_exact(&mut buf) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("File read {}", e);
+                        break;
+                    }
+                }
 
-            if check_palindrome(&buf) {
-                s_buf = std::str::from_utf8(&buf);
-                println!("${} {:?}", i, s_buf);
-                break;
+                if check_palindrome(&buf) {
+                    s_buf = std::str::from_utf8(&buf);
+                    println!("${} {:?}", i, s_buf);
+                    break;
+                }
+
+                index = index + 21;
+                cont = cont + 1;
+
+                println!("${} #{} {}", i, index, cont);
+
+                if cont % 100000 == 0 {
+                    s_buf = std::str::from_utf8(&buf);
+                    println!("${} {:?}", i, s_buf);
+                }
+
+                if index % 100000000 / num_cpus as u64 == 0 {
+                    s_buf = std::str::from_utf8(&buf);
+                    println!("${} {:?}", i, s_buf);
+                    //break;
+                }
             }
-        }
-
-        i = i + 1;
-
-        if i % 100000 == 0 {
-            s_buf = std::str::from_utf8(&buf);
-            println!("${} #{} {:?}", i, &args[1], s_buf);
-        }
+        });
     }
 }
 
