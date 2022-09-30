@@ -5,36 +5,78 @@ use std::io::{Read, Seek};
 
 use num::integer::Roots;
 
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::io::{BufRead, BufReader};
+
+//mod check_palindrome;
+
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
+
+mod palindrome;
+
+const size: usize = 37;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     println!("{:?}", args);
 
-    let mut file = File::open(&args[2]).expect("File open");
+    let mut file = File::open(&args[1]).expect("File open");
 
-    let mut buf = [0; 21];
-    let index = u64::from_str_radix(&args[1], 10).unwrap();
-    let mut i = index;
-    let mut s_buf = std::str::from_utf8(&buf);
+    let mut buf: [u8; 40] = [0; 40];
+
+    let mut i = start_ycd(&args[1]);
+    let mut num: u128 = bin_to_int(&buf);
+    println!("{:?} i:{:?} n:{}", args, i, &num);
+
+    let mut file_r = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open("./result.txt")
+        .unwrap();
+
     loop {
-        if (i / 8) % 8 == index {
-            file.seek(SeekFrom::Start(i)).expect("seek failed");
+        file.seek(SeekFrom::Start(i)).expect("seek failed");
 
-            file.read_exact(&mut buf).expect("File read");
+        file.read_exact(&mut buf).expect("File read");
 
-            if check_palindrome(&buf) {
-                s_buf = std::str::from_utf8(&buf);
-                println!("${} {:?}", i, s_buf);
+        let shift = palindrome::check_palindrome(&buf);
+        if shift == 0 {
+            //s_buf = std::str::from_utf8(&buf).unwrap();
+
+            //println!("palindrome: ${} {}", i, &s_buf);
+            //let num = u128::from_str_radix(s_buf, 10).unwrap();
+
+            num = bin_to_int(&buf);
+
+            if let Err(e) = writeln!(file_r, "palindrome: ${} {}", i, &num) {
+                eprintln!("Couldn't write to file: {}", e);
+            }
+
+            if is_prime(&num) {
+                println!("palindrome primo: ${} {}", i, &num);
+                if let Err(e) = writeln!(file_r, "palindrome primo: ${} {}", i, &num) {
+                    eprintln!("Couldn't write to file: {}", e);
+                }
                 break;
             }
+            i = i + 1;
+        } else {
+            i = i + shift;
         }
 
-        i = i + 1;
-
-        if i % 100000 == 0 {
-            s_buf = std::str::from_utf8(&buf);
-            println!("${} #{} {:?}", i, &args[1], s_buf);
+        if i % 1000000 == 0 {
+            num = bin_to_int(&buf);
+            println!("${} {}", i, num);
         }
     }
+}
+
+fn start_ycd(path: &String) -> u64 {
+    let mut file = BufReader::new(File::open(path).expect("File open"));
+    let mut buf = Vec::<u8>::new();
+    file.read_until(0, &mut buf).unwrap() as u64
 }
 
 fn is_prime(value: &u128) -> bool {
@@ -54,44 +96,25 @@ fn is_prime(value: &u128) -> bool {
     true
 }
 
-fn check_palindrome(palavra: &[u8; 21]) -> bool {
-    if palavra[0] == palavra[20] {
-        if palavra[1] == palavra[19] {
-            if palavra[2] == palavra[18] {
-                if palavra[3] == palavra[17] {
-                    if palavra[4] == palavra[16] {
-                        if palavra[5] == palavra[15] {
-                            if palavra[6] == palavra[14] {
-                                if palavra[7] == palavra[13] {
-                                    if palavra[8] == palavra[12] {
-                                        if palavra[9] == palavra[11] {
-                                            let n_str = std::str::from_utf8(palavra).unwrap();
-                                            println!("palindrome: {:?}", &palavra);
-
-                                            match u128::from_str_radix(n_str, 10) {
-                                                Ok(n) => {
-                                                    if is_prime(&n) {
-                                                        println!(
-                                                            "palindrome primo: {:?}",
-                                                            &palavra
-                                                        );
-                                                        return true;
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    println!("error from_str_radix")
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    false
+fn bin_to_int(palavra: &[u8; 40]) -> u128 {
+    let mut p1 = LittleEndian::read_u64(&palavra[0..8]).to_string();
+    p1.push_str(LittleEndian::read_u64(&palavra[8..16]).to_string().as_str());
+    p1.push_str(
+        LittleEndian::read_u64(&palavra[16..24])
+            .to_string()
+            .as_str(),
+    );
+    p1.push_str(
+        LittleEndian::read_u64(&palavra[24..32])
+            .to_string()
+            .as_str(),
+    );
+    p1.push_str(
+        LittleEndian::read_u64(&palavra[32..40])
+            .to_string()
+            .as_str(),
+    );
+    println!("{}", p1);
+    0
+    //u128::from_str_radix(&p1[0..37], 10).unwrap()
 }
